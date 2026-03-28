@@ -22,6 +22,50 @@ def get_key() -> str | None:
     return _get_key_posix()
 
 
+def debug_keys(n: int = 5) -> None:
+    """Press n keys and print the exact bytes received via setraw + read(1).
+    Run this to diagnose what escape sequences your terminal actually sends.
+    Usage: python -c "from terminal_input import debug_keys; debug_keys()"
+    """
+    import select
+    import termios
+    import time
+    import tty
+
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    print(f"Press {n} keys (arrows, enter, etc). Ctrl+C to quit early.\r")
+    count = 0
+    try:
+        tty.setraw(fd)
+        while count < n:
+            ch = sys.stdin.read(1)
+            if ch == "\x03":
+                break
+            seq = [ch]
+            # Drain any remaining bytes that arrive within 100 ms
+            deadline = time.monotonic() + 0.1
+            while True:
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    break
+                ready, _, _ = select.select([sys.stdin], [], [], min(0.05, left))
+                if ready:
+                    c = sys.stdin.read(1)
+                    if c:
+                        seq.append(c)
+                        deadline = time.monotonic() + 0.05  # extend slightly
+                else:
+                    break
+            parts = " + ".join(repr(c) for c in seq)
+            raw = " ".join(f"\\x{ord(c):02x}" for c in seq)
+            print(f"  key {count+1}: {parts}  [{raw}]\r")
+            count += 1
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    print("Done.\r")
+
+
 def _get_key_windows() -> str | None:
     ch = msvcrt.getch()
     if ch in (b"\x00", b"\xe0"):
@@ -40,51 +84,40 @@ def _get_key_windows() -> str | None:
 
 
 def _get_key_posix() -> str | None:
-    import select
     import termios
-    import time
     import tty
 
     fd = sys.stdin.fileno()
     if not os.isatty(fd):
         return None
 
-    def _read_one_within(deadline: float) -> str:
-        """Read one byte from stdin before deadline (monotonic). macOS terminals
-        often deliver ESC and the rest of a CSI sequence a few ms apart; a single
-        short select() frequently times out and was misread as bare Escape -> quit."""
-        while True:
-            left = deadline - time.monotonic()
-            if left <= 0:
-                return ""
-            timeout = min(0.05, left)
-            ready, _, _ = select.select([sys.stdin], [], [], timeout)
-            if ready:
-                c = sys.stdin.read(1)
-                return c if c else ""
-            # keep polling until deadline (not a single short select)
-
     old = termios.tcgetattr(fd)
     try:
+        # Phase 1: block indefinitely until the user presses something.
+        # VMIN=1, VTIME=0 — standard raw mode, waits forever for 1 byte.
         tty.setraw(fd)
         ch = sys.stdin.read(1)
         if not ch:
             return None
+
         if ch == "\x1b":
-            # Arrow keys: ESC [ A/B/C/D or SS3 ESC O A. Bare ESC: nothing more within window.
-            d1 = time.monotonic() + 0.45
-            ch2 = _read_one_within(d1)
+            # Phase 2: switch to VMIN=0, VTIME=1 (100 ms kernel timeout).
+            # This lets the kernel buffer the rest of the escape sequence
+            # before handing it to us, so each read(1) reliably gets the
+            # next byte without needing select() loops or Python-side timers.
+            attrs = termios.tcgetattr(fd)
+            attrs[6][termios.VMIN] = 0   # don't require a minimum byte count
+            attrs[6][termios.VTIME] = 1  # wait up to 100 ms (units of 0.1 s)
+            termios.tcsetattr(fd, termios.TCSANOW, attrs)
+
+            ch2 = sys.stdin.read(1)
             if not ch2:
-                return "quit"
-            if ch2 == "[":
-                d2 = time.monotonic() + 0.2
-                ch3 = _read_one_within(d2)
-                return {"A": "up", "B": "down", "C": "right", "D": "left"}.get(ch3)
-            if ch2 == "O":
-                d2 = time.monotonic() + 0.2
-                ch3 = _read_one_within(d2)
+                return None  # bare Escape — nothing arrived within 100 ms
+            if ch2 in ("[", "O"):
+                ch3 = sys.stdin.read(1)
                 return {"A": "up", "B": "down", "C": "right", "D": "left"}.get(ch3)
             return None
+
         if ch in ("\r", "\n"):
             return "enter"
         if ch == " ":
