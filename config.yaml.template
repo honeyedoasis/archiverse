@@ -175,6 +175,7 @@ filename_templates:
 # Key = community slug; each entry needs name + id (memberId from API).
 # Example:
 #   official_channels:
+#     fromis9:
 #     - name: "floverse_9"
 #       id:   "58afde0dbc1fccd94cd44eff91fa3673"
 official_channels: {}
