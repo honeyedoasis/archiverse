@@ -1,6 +1,10 @@
 import base64
 import datetime
 import mimetypes
+import re
+import shutil
+import subprocess
+import threading
 import time
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -10,10 +14,142 @@ import requests
 from rich.console import Console
 from rich.progress import (
     Progress, BarColumn, DownloadColumn,
-    TransferSpeedColumn, TaskProgressColumn, TextColumn,
+    TransferSpeedColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn,
 )
 
 console = Console()
+
+_OUT_TIME_US_RE = re.compile(r"^out_time_ms=(\d+)$")
+
+
+def ffprobe_duration_seconds(path: Path) -> float | None:
+    """Return container duration in seconds, or None if unknown."""
+    from config import BINARIES
+
+    name = BINARIES.get("ffprobe", "ffprobe")
+    ffprobe = shutil.which(name) or name
+    cmd = [
+        ffprobe,
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        str(path),
+    ]
+    try:
+        r = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+        )
+        if r.returncode != 0:
+            return None
+        s = (r.stdout or "").strip()
+        if not s or s.lower() == "n/a":
+            return None
+        return float(s)
+    except (ValueError, subprocess.TimeoutExpired, OSError):
+        return None
+
+
+def run_ffmpeg_with_progress(
+    cmd: list[str],
+    *,
+    duration_source: Path | None = None,
+    description: str = "Muxing",
+) -> tuple[int, str]:
+    """
+    Run ffmpeg with a Rich progress bar (uses -progress pipe:1).
+    Returns (returncode, stderr text for failures).
+    """
+    if not cmd:
+        return -1, ""
+
+    duration_sec: float | None = None
+    if duration_source is not None and duration_source.exists():
+        duration_sec = ffprobe_duration_seconds(duration_source.resolve())
+        if duration_sec is not None and duration_sec <= 0:
+            duration_sec = None
+
+    ffmpeg_exe = cmd[0]
+    rest = cmd[1:]
+    new_cmd = [
+        ffmpeg_exe,
+        "-hide_banner",
+        "-nostats",
+        "-loglevel",
+        "error",
+        "-progress",
+        "pipe:1",
+    ] + rest
+
+    creationflags = 0x08000000 if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+
+    proc = subprocess.Popen(
+        new_cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.DEVNULL,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=creationflags,
+    )
+
+    stderr_holder: list[str] = [""]
+
+    def _drain_stderr() -> None:
+        if proc.stderr:
+            try:
+                stderr_holder[0] = proc.stderr.read()
+            except Exception:
+                pass
+
+    t_err = threading.Thread(target=_drain_stderr, daemon=True)
+    t_err.start()
+
+    assert proc.stdout is not None
+
+    if duration_sec:
+        with Progress(
+            TextColumn("[bold cyan]{task.description}"),
+            BarColumn(bar_width=35),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            transient=True,
+            console=console,
+        ) as progress:
+            task = progress.add_task(description, total=1000)
+            while True:
+                line = proc.stdout.readline()
+                if not line:
+                    break
+                line = line.strip()
+                m = _OUT_TIME_US_RE.match(line)
+                if m:
+                    # FFmpeg reports microseconds in out_time_ms despite the name.
+                    out_us = int(m.group(1))
+                    sec = out_us / 1_000_000.0
+                    pct = min(1.0, sec / duration_sec) if duration_sec else 0.0
+                    progress.update(task, completed=min(1000, int(pct * 1000)))
+            rc = proc.wait()
+            t_err.join(timeout=30)
+            progress.update(task, completed=1000)
+    else:
+        with console.status(f"[bold cyan]{description}…[/bold cyan]"):
+            while True:
+                line = proc.stdout.readline()
+                if not line:
+                    break
+            rc = proc.wait()
+            t_err.join(timeout=30)
+
+    return (rc if rc is not None else -1), stderr_holder[0]
 
 
 def edit_creation_date(file_path, new_date: datetime.datetime):

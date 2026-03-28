@@ -429,8 +429,6 @@ def download_single_live(item_data: dict, post_id: str | None = None):
             if thumb_matches:
                 thumb_path = thumb_matches[0]
 
-        console.print(f"  -> Muxing subtitles and metadata into {final_path.name}...")
-
         from text_writer import live_url, embed_url_metadata
         weverse_url = live_url(state.COMMUNITY_NAME, post_id)
         live_title  = meta.get("title", "")
@@ -463,9 +461,13 @@ def download_single_live(item_data: dict, post_id: str | None = None):
 
         cmd.extend(["-c", "copy", str(final_path)])
 
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
+        rc, mux_err = utils.run_ffmpeg_with_progress(
+            cmd,
+            duration_source=Path(actual_video),
+            description=f"Muxing {final_path.name}",
+        )
 
-        if result.returncode == 0:
+        if rc == 0:
             try:
                 if actual_video.exists():
                     actual_video.unlink()
@@ -498,7 +500,10 @@ def download_single_live(item_data: dict, post_id: str | None = None):
             if final_path.exists():
                 mark_downloaded(post_id)
         else:
-            console.print(f"  [Error] FFmpeg failed for {post_id}: {result.stderr}")
+            _detail = (mux_err or "").strip()[:800]
+            console.print(
+                f"  [Error] FFmpeg failed for {post_id}: {_detail or '(no stderr)'}"
+            )
 
     except Exception as e:
         console.print(f"  [Error] Failed processing live {post_id}: {e}")

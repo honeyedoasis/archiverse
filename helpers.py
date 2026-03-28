@@ -9,9 +9,10 @@ import re
 import shutil
 
 import state
-import subprocess
 import uuid
 from pathlib import Path
+
+from utils import console, run_ffmpeg_with_progress
 
 
 def clear_screen():
@@ -314,31 +315,24 @@ def mux_media_with_subtitles(video_path: Path, sub_list: list, ffmpeg_bin: str =
     cmd.extend(["-c:v", "copy", "-c:a", "copy", "-c:s", "srt", str(output_abs)])
 
     try:
-        # 3. text=True, encoding='utf-8', errors='replace' prevents emoji crashes on Windows
-        process = subprocess.run(
-            cmd, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE, 
-            text=True, 
-            encoding="utf-8", 
-            errors="replace"
+        rc, err = run_ffmpeg_with_progress(
+            cmd,
+            duration_source=video_abs,
+            description=f"Muxing {video_abs.name}",
         )
-        
-        if process.returncode == 0:
-            print(f"  [Mux] Successfully created MKV: {output_abs.name}")
-            # Clean up original mp4 and vtt files only if successful
+        if rc == 0:
+            console.print(f"  [Mux] Successfully created MKV: {output_abs.name}")
             video_abs.unlink(missing_ok=True)
             for sub in sub_list:
                 Path(sub["path"]).resolve().unlink(missing_ok=True)
             return output_abs
-        else:
-            # 4. If it fails, print EXACTLY why it failed
-            print(f"  [FFmpeg Error] Process failed with code {process.returncode}")
-            print(f"  [FFmpeg Details] {process.stderr.strip()}")
-            return None
-            
+        console.print(f"  [FFmpeg Error] Process failed with code {rc}")
+        err = (err or "").strip()
+        if err:
+            console.print(f"  [FFmpeg Details] {err[:2000]}")
+        return None
     except Exception as e:
-        print(f"  [Mux Exception] A critical error occurred: {e}")
+        console.print(f"  [Mux Exception] A critical error occurred: {e}")
         return None
         
         

@@ -53,6 +53,7 @@ BASE_DIR: str = _raw_base if _raw_base else "."
 
 BINARIES: dict = CFG.get("binaries", {
     "ffmpeg":      "ffmpeg",
+    "ffprobe":     "ffprobe",
     "n_m3u8dl_re": "N_m3u8DL-RE",
     "yt_dlp":      "yt-dlp",
     "streamlink":  "streamlink",

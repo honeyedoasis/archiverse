@@ -859,9 +859,15 @@ def record_ongoing_live_streamlink(
             "-avoid_negative_ts", "make_zero", str(remux_tmp),
         ]
     try:
-        r2 = subprocess.run(cmd_remux, capture_output=True, text=True, encoding="utf-8", errors="replace")
-        if r2.returncode != 0 or not remux_tmp.exists():
-            console.print(f"  [Live Record Error] FFmpeg remux failed: {(r2.stderr or '')[:300]}")
+        rc, remux_err = utils.run_ffmpeg_with_progress(
+            cmd_remux,
+            duration_source=temp_path,
+            description=f"Remux → {final_path.name}",
+        )
+        if rc != 0 or not remux_tmp.exists():
+            console.print(
+                f"  [Live Record Error] FFmpeg remux failed: {(remux_err or '')[:300]}"
+            )
             return None
         if final_path.exists():
             final_path.unlink()
