@@ -119,6 +119,7 @@ For long runs, consider setting **`weverse_refresh_token`** in `config.yaml` so 
 - **`--no-history`** — do not read or update `downloaded.json` for this run
 - **`--skip-membership` / `--skip-public`** — filter by visibility
 - **`-id` / `--community_ids`** — supply community IDs if slug lookup fails (same order as `-c`)
+- **`--ongoing-live-monitor-no-prompt`** — skips prompting the user to keep monitoring lives or not
 
 ---
 
