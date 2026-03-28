@@ -79,6 +79,8 @@ Folder structure is configurable in config.yaml.
                           help="Open interactive Live menu. Provide a Video ID to download immediately.")
     g_action.add_argument("--ongoing-live-monitor", action="store_true",
                           help="Monitor on-air livestreams and record them until they go offline.")
+    g_action.add_argument("--ongoing-live-monitor-no-prompt", action="store_true",
+                          help="With --ongoing-live-monitor: when a recording finishes, keep monitoring without asking.")
     g_action.add_argument("--ongoing-live-now", nargs="?", const="__LATEST__", default=None, metavar="MATCH",
                           help="Record a currently on-air live immediately. MATCH can be postId/videoId/shareUrl.")
     g_action.add_argument("--ongoing-live-poll", type=int, default=30, metavar="SECONDS",
@@ -88,9 +90,17 @@ Folder structure is configurable in config.yaml.
     g_action.add_argument("--ongoing-live-chat", action="store_true",
                           help="(Ignored for ongoing lives) Ongoing live chat is not downloaded.")
     g_action.add_argument("--ongoing-live-subs", type=str, default="eng|kor", metavar="LANGS",
-                          help='Subtitle languages passed to N_m3u8DL-RE as -ss lang="LANGS":for=all. Default: eng|kor')
-    g_action.add_argument("--ongoing-live-output-format", type=str, choices=["mp4", "mkv"], default="mp4",
-                          help="Mux output format for ongoing live recording. Default: mp4.")
+                          help='Post-recording subs via N_m3u8DL-RE: -ss lang="LANGS":for=all. '
+                               'Use none (or no/off) to skip subtitles. Default: eng|kor.')
+    g_action.add_argument(
+        "--ongoing-live-output-format",
+        nargs="?",
+        const="mp4",
+        default="mp4",
+        choices=["mp4", "mkv"],
+        help="Container after Streamlink + FFmpeg remux (ongoing lives). Default: mp4. "
+             "Use the flag alone to keep the default.",
+    )
     g_action.add_argument("--moments", nargs="?", const=True, metavar="POST_ID",
                           help="Archive Artist Moments. Provide a Post ID for a specific moment.")
     g_action.add_argument("--post", metavar="POST_ID",
@@ -218,6 +228,7 @@ Folder structure is configurable in config.yaml.
                     record_all=args.ongoing_live_record_all,
                     subtitle_langs=args.ongoing_live_subs,
                     output_format=args.ongoing_live_output_format,
+                    skip_monitor_prompt=args.ongoing_live_monitor_no_prompt,
                 )
             elif args.ongoing_live_now:
                 process_ongoing_lives(
@@ -304,8 +315,8 @@ Folder structure is configurable in config.yaml.
             _has_artists = (state.TARGET_ARTISTS is None or len(state.TARGET_ARTISTS) > 0)
 
             ACTION_ORDER = [
-                "artist", "moments", "live", "ongoing_live",
-                "media", "media_menu", "profile", "official",
+                "profile", "moments", "artist", "official", "media",
+                "media_menu", "live", "ongoing_live",
             ]
 
             quit_program = False
