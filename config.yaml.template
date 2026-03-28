@@ -30,6 +30,8 @@ wvd_device_path: ""
 binaries:
   # Use bare names if these are on PATH; otherwise use full paths.
   ffmpeg: "ffmpeg"
+  # Shipped with most FFmpeg builds; used for duration probing (mux / remux progress bar).
+  ffprobe: "ffprobe"
   # Windows: "D:/tools/n-m3u8dl-re.exe"   macOS/Linux: "/usr/local/bin/N_m3u8DL-RE"
   n_m3u8dl_re: "N_m3u8DL-RE"
   yt_dlp: "yt-dlp"
