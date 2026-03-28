@@ -42,11 +42,27 @@ def _get_key_windows() -> str | None:
 def _get_key_posix() -> str | None:
     import select
     import termios
+    import time
     import tty
 
     fd = sys.stdin.fileno()
     if not os.isatty(fd):
         return None
+
+    def _read_one_within(deadline: float) -> str:
+        """Read one byte from stdin before deadline (monotonic). macOS terminals
+        often deliver ESC and the rest of a CSI sequence a few ms apart; a single
+        short select() frequently times out and was misread as bare Escape -> quit."""
+        while True:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                return ""
+            timeout = min(0.05, left)
+            ready, _, _ = select.select([sys.stdin], [], [], timeout)
+            if ready:
+                c = sys.stdin.read(1)
+                return c if c else ""
+            # keep polling until deadline (not a single short select)
 
     old = termios.tcgetattr(fd)
     try:
@@ -55,17 +71,18 @@ def _get_key_posix() -> str | None:
         if not ch:
             return None
         if ch == "\x1b":
-            # Arrow keys: ESC [ A/B/C/D. Bare ESC: wait briefly; if nothing follows, treat as quit.
-            ready, _, _ = select.select([sys.stdin], [], [], 0.05)
-            if not ready:
+            # Arrow keys: ESC [ A/B/C/D or SS3 ESC O A. Bare ESC: nothing more within window.
+            d1 = time.monotonic() + 0.45
+            ch2 = _read_one_within(d1)
+            if not ch2:
                 return "quit"
-            ch2 = sys.stdin.read(1)
             if ch2 == "[":
-                ch3 = sys.stdin.read(1)
+                d2 = time.monotonic() + 0.2
+                ch3 = _read_one_within(d2)
                 return {"A": "up", "B": "down", "C": "right", "D": "left"}.get(ch3)
-            # SS3 arrows (some terminals): ESC O A / etc.
             if ch2 == "O":
-                ch3 = sys.stdin.read(1)
+                d2 = time.monotonic() + 0.2
+                ch3 = _read_one_within(d2)
                 return {"A": "up", "B": "down", "C": "right", "D": "left"}.get(ch3)
             return None
         if ch in ("\r", "\n"):
