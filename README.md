@@ -1,6 +1,8 @@
-# wv-archive
+# Archiverse
 
 An all-in-one command-line tool to archive photos, videos, lives, and text from [Weverse](https://weverse.io/) communities you have access to. It supports artist posts, moments, official channels, the media tab, live VODs, and optional recording of currently on-air streams.
+
+This project is based on [Weverse Archive](https://github.com/honeyedoasis/WeverseArchive) and some scripts from a friend.
 
 **Platform support:** Windows, macOS, and Linux. Interactive menus expect a **real terminal** (TTY). Run from Terminal, Windows Terminal, iTerm, etc. Some IDE “Run” panels do not provide a TTY, so keyboard navigation may not work there.
 
