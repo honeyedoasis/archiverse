@@ -3,6 +3,7 @@ text_writer.py
 Handles text-only post archiving, artist comment saving, and URL metadata
 embedding into image and video files.
 """
+import html
 import re
 import struct
 import time
@@ -15,6 +16,23 @@ import utils
 from utils import console
 from config import BINARIES
 from api import make_extractor, run_extr
+
+
+def _clean_post_body_text(raw: str) -> str:
+    """
+    Normalize Weverse post/comment body text for .txt output:
+    - Strip WordprocessingML tags (<w:b>, </w:b>, <w:t/>, …)
+    - Decode HTML/XML character references (&gt;, &lt;, &amp;, &#…;, etc.)
+    - Collapse runs of blank lines
+    """
+    if not raw:
+        return ""
+    s = raw.strip()
+    # Opening, closing, and self-closing w:* tags (API sometimes leaves </w:b> behind)
+    s = re.sub(r"</?w:[^>]+>", "", s)
+    s = html.unescape(s)
+    s = re.sub(r"\n{3,}", "\n\n", s).strip()
+    return s
 
 
 def _format_post_header_ts(ts) -> str:
@@ -282,14 +300,12 @@ def fetch_comments(post_id: str) -> tuple[list, str]:
                 if parent.get("type") == "POST":
                     raw = (parent.get("data", {}).get("body") or "").strip()
                     if raw:
-                        cleaned = re.sub(r"<w:[^>]+/?>", "", raw)
-                        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
-                        post_body = cleaned
+                        post_body = _clean_post_body_text(raw)
 
             author = c.get("author", {})
             if author.get("profileType") not in ("ARTIST", "AGENCY"):
                 continue
-            body = (c.get("body") or "").strip()
+            body = _clean_post_body_text(c.get("body") or "")
             if not body:
                 continue
 
@@ -306,7 +322,7 @@ def fetch_comments(post_id: str) -> tuple[list, str]:
             parent_data  = None
             if parent_block.get("type") == "COMMENT":
                 pd          = parent_block.get("data", {})
-                parent_body = (pd.get("body") or "").strip()
+                parent_body = _clean_post_body_text(pd.get("body") or "")
                 if parent_body:
                     fan_author = pd.get("author", {})
                     fan_ts     = pd.get("createdAt") or pd.get("publishedAt")
@@ -358,8 +374,7 @@ def save_post_text(post: dict, output_dir: str, filename_stem: str, weverse_url:
     raw_body = (post.get("body") or post.get("plainBody") or "").strip()
     if raw_body.strip().lower() in ("moment uploaded.", ""):
         raw_body = ""
-    body = re.sub(r"<w:[^>]+/?>", "", raw_body)
-    body = re.sub(r"\n{3,}", "\n\n", body).strip()
+    body = _clean_post_body_text(raw_body)
 
     comments = []
     post_body_from_api = ""
