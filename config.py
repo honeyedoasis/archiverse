@@ -87,10 +87,7 @@ def get_folder(key: str, **kwargs) -> str:
 
     Automatically injects {base} and {media} so callers only need to
     pass community/artist/tier/channel as relevant.
-
-    Example:
-        get_folder("lives", community="BINI", artist="Aiah", tier="Public")
-        -> "D:/WeverseArchive/BINI/Media/Public/Lives/Aiah"
+    
     """
     template = FOLDERS.get(key, "")
     kwargs.setdefault("base",  BASE_DIR)
