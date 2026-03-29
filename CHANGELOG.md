@@ -2,6 +2,12 @@
 
 All notable changes to this project are recorded here. The history below follows the repository from the first commit; related doc-only or merge commits are summarized together.
 
+### Fixed
+
+- **Saved post text (`.txt`)** — decode HTML/XML character references (`&gt;`, `&lt;`, `&amp;`, etc.) and strip WordprocessingML fragments (`<w:…>`, `</w:…>`) from post and comment bodies in `text_writer.py`.
+
+---
+
 ## 2026-03-29
 
 ### Added
@@ -40,33 +46,3 @@ All notable changes to this project are recorded here. The history below follows
 ### Project
 
 - **`config.yaml.template`** and **README** — first-pass setup and usage documentation.
-
----
-
-## Full commit list (oldest first)
-
-| Date       | Summary |
-| ---------- | ------- |
-| 2026-03-28 | Weverse archiver: CLI, DRM downloads, lives, and ongoing live recording |
-| 2026-03-28 | Updated config.yaml.template |
-| 2026-03-28 | Updated README |
-| 2026-03-28 | Changed wv-archive.py to archiverse.py |
-| 2026-03-28 | Updated config.yaml.template |
-| 2026-03-28 | Updated README |
-| 2026-03-28 | Updated macOS keyboard handling |
-| 2026-03-28 | Delete wv-archive.py |
-| 2026-03-29 | Extract date from url when saving profile picture |
-| 2026-03-28 | Updated formate template for official_channels |
-| 2026-03-28 | Merge pull request #1 from honeyedoasis/add-pfp-date |
-| 2026-03-28 | Conclude merge: deleted wv-archive.py |
-| 2026-03-28 | Finish merge |
-| 2026-03-29 | Reorganized main menu and added --ongoing-live-monitor-no-prompt |
-| 2026-03-29 | Fixed macOS keyboard handling |
-| 2026-03-29 | Fixed code for HDR streams |
-| 2026-03-29 | Updated main menu layout |
-| 2026-03-29 | Updated README |
-| 2026-03-29 | Added progress bar for video muxing |
-| 2026-03-29 | Updated config.yaml.template |
-| 2026-03-29 | Updated README |
-
-*Note: Author dates on a few commits may show as 2026-03-28 while they appear later in history; the table follows `git log --reverse` order.*
