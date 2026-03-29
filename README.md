@@ -159,4 +159,7 @@ Timezone for filenames and text headers is controlled by **`timezone`** (IANA na
 | `processors.py` / `official_media.py` | Feed and media archiving |
 | `downloader.py` / `api.py` | Downloads and Weverse API helpers |
 
+## TO-DO
+- Support for on-air membership livestreams
+
 If something is missing or unclear, open an issue or improve this README via pull request.
