@@ -19,7 +19,7 @@ This project is based on [Weverse Archive](https://github.com/honeyedoasis/Wever
 
 You also need:
 
-- A Weverse **bearer token** (`auth_token` in config) for API access
+- A Weverse **bearer token** (`auth_token` in config) for API access (the tool calls the Weverse APIs directly using this token; no browser cookie extraction is required)
 - A **Widevine device file** (`.wvd`) at `wvd_device_path` for membership / DRM-protected content
 
 Use this software only in line with Weverse’s terms of service and applicable law. You are responsible for your account and for content you download.
