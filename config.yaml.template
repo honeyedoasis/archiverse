@@ -34,7 +34,6 @@ binaries:
   ffprobe: "ffprobe"
   # Windows: "D:/tools/n-m3u8dl-re.exe"   macOS/Linux: "/usr/local/bin/N_m3u8DL-RE"
   n_m3u8dl_re: "N_m3u8DL-RE"
-  yt_dlp: "yt-dlp"
   mkvpropedit: "mkvpropedit"
   streamlink: "streamlink"
 
