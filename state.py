@@ -4,7 +4,7 @@ Mutable runtime state shared across all modules.
 Import and modify these directly:
 
     import state
-    state.COMMUNITY_NAME = "BINI"
+    state.COMMUNITY_NAME = "STAYC"
 """
 
 COMMUNITY_NAME:  str  | None = None
