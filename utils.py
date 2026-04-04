@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 import filedate
 import requests
 from rich.console import Console
+from rich.markup import escape
 from rich.progress import (
     Progress, BarColumn, DownloadColumn,
     TransferSpeedColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn,
@@ -20,6 +21,19 @@ from rich.progress import (
 console = Console()
 
 _OUT_TIME_US_RE = re.compile(r"^out_time_ms=(\d+)$")
+
+# Max characters for the mux progress label (narrow terminal + Rich live region).
+_MUX_LABEL_MAX_LEN = 52
+# FFmpeg emits many progress lines; throttling avoids flaky terminals printing one line per refresh.
+_MUX_PROGRESS_MIN_INTERVAL = 0.12
+
+
+def _mux_progress_label(description: str) -> str:
+    """Shorten and escape text so Rich does not treat filename brackets as markup."""
+    s = " ".join((description or "").replace("\n", " ").split())
+    if len(s) > _MUX_LABEL_MAX_LEN:
+        s = s[: _MUX_LABEL_MAX_LEN - 1] + "…"
+    return escape(s)
 
 
 def ffprobe_duration_seconds(path: Path) -> float | None:
@@ -116,6 +130,9 @@ def run_ffmpeg_with_progress(
     assert proc.stdout is not None
 
     if duration_sec:
+        safe_desc = _mux_progress_label(description)
+        last_completed = -1
+        last_update_t = 0.0
         with Progress(
             TextColumn("[bold cyan]{task.description}"),
             BarColumn(bar_width=35),
@@ -123,8 +140,9 @@ def run_ffmpeg_with_progress(
             TimeElapsedColumn(),
             transient=True,
             console=console,
+            refresh_per_second=8,
         ) as progress:
-            task = progress.add_task(description, total=1000)
+            task = progress.add_task(safe_desc, total=1000)
             while True:
                 line = proc.stdout.readline()
                 if not line:
@@ -136,12 +154,24 @@ def run_ffmpeg_with_progress(
                     out_us = int(m.group(1))
                     sec = out_us / 1_000_000.0
                     pct = min(1.0, sec / duration_sec) if duration_sec else 0.0
-                    progress.update(task, completed=min(1000, int(pct * 1000)))
+                    completed = min(1000, int(pct * 1000))
+                    completed = max(last_completed, completed)
+                    now = time.monotonic()
+                    if completed == last_completed:
+                        continue
+                    if (
+                        completed < 1000
+                        and (now - last_update_t) < _MUX_PROGRESS_MIN_INTERVAL
+                    ):
+                        continue
+                    progress.update(task, completed=completed)
+                    last_completed = completed
+                    last_update_t = now
             rc = proc.wait()
             t_err.join(timeout=30)
             progress.update(task, completed=1000)
     else:
-        with console.status(f"[bold cyan]{description}…[/bold cyan]"):
+        with console.status(f"[bold cyan]{_mux_progress_label(description)}…[/bold cyan]"):
             while True:
                 line = proc.stdout.readline()
                 if not line:
