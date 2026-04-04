@@ -19,14 +19,6 @@ def clear_screen():
 
 
 def fix_surrogates(s) -> str:
-    """
-    Resolve JSON surrogate pairs into real Unicode characters.
-    e.g.  'HBD\\uD83D\\uDC30'  ->  'HBD🐰'
-
-    Python's json decoder leaves surrogate pairs as two lone surrogates
-    (U+D83D, U+DC30). Re-encoding through UTF-16 with surrogatepass
-    forces them to be combined into the correct code point.
-    """
     if not isinstance(s, str):
         return s
     try:
@@ -54,16 +46,6 @@ def format_playtime_hhmmss(total_seconds) -> str:
 
 
 def sanitise_surrogates(s: str) -> str:
-    """
-    Remove lone Unicode surrogates (U+D800–U+DFFF) that are invalid in
-    filenames and cause codec errors on Windows, while keeping all real
-    emoji and other valid Unicode characters intact.
-
-    Lone surrogates appear when JSON contains unmatched surrogate pairs
-    (e.g. a single \\uD83D with no following \\uDC30).  Proper surrogate
-    pairs should already have been resolved by fix_surrogates() before
-    reaching here — this is a safety net for anything that slips through.
-    """
     return "".join(ch for ch in s if not (0xD800 <= ord(ch) <= 0xDFFF))
 
 
@@ -71,11 +53,6 @@ def sanitise_surrogates(s: str) -> str:
 def get_author_name(author: dict) -> str:
     """
     Resolve the display name for any Weverse profile type.
-
-    ARTIST  ->  author['artistOfficialProfile']['officialName']
-    AGENCY  ->  author['profileName']   (official channel)
-    GROUP   ->  author['profileName']   (group account)
-    fallback->  state.COMMUNITY_NAME
     """
     official = author.get("artistOfficialProfile", {})
     return (
@@ -89,10 +66,6 @@ def get_author_name(author: dict) -> str:
 def matches_target(name: str) -> bool:
     """
     Check whether 'name' (from the API) matches any entry in TARGET_ARTISTS.
-
-    Matching is case-insensitive and bidirectional:
-      - target "Aiah" matches API name "Aiah Arceta"
-      - target "Aiah Arceta" matches API name "Aiah"
 
     Returns True when TARGET_ARTISTS is None (no filter = match all).
     """
@@ -110,21 +83,6 @@ def matches_target(name: str) -> bool:
 def make_filename(artist: str, date, post_id: str, title: str = "", template_key: str = "default", tier: str = "") -> str:
     """
     Build a filename stem using the template defined in config.yaml.
-
-    Available placeholders in templates:
-      {community}   - state.COMMUNITY_NAME
-      {artist}      - artist / channel name
-      {date}        - formatted using date_format in config.yaml
-                      e.g. "%Y.%m.%d %H-%M-%S" -> "2026.03.21 22-18-11"
-      {date_dotted} - YYYY.MM.DD  (legacy alias, always dots format)
-      {post_id}     - post / attachment ID
-      {title}       - content title (meaningful for lives; blank for others)
-      {tier}        - "Public" or "Membership" (blank string when not passed)
-
-    template_key selects which template from config.yaml filename_templates
-    to use. Defaults to "default"; pass "lives" for live stream filenames.
-
-    The result is sanitised to remove characters illegal on Windows.
     """
     from config import FILENAME_TEMPLATES, DATE_FORMAT, DATE_FORMATS, DATE_SEP, TIME_SEP, TIER_BRACKET, POSTID_BRACKET
     import re as _re
@@ -151,13 +109,6 @@ def make_filename(artist: str, date, post_id: str, title: str = "", template_key
         date_dotted = str(date)[:10].replace("-", ".")
 
     def _safe_part(val: str) -> str:
-        """
-        Make a string safe for use in Windows filenames:
-        - remove ASCII control chars (incl. newlines/tabs)
-        - replace Windows-illegal characters with '-'
-        - remove lone surrogates
-        - collapse whitespace
-        """
         s = "" if val is None else str(val)
         s = _re.sub(r"[\x00-\x1f]+", " ", s)
         s = _re.sub(r'[<>:"/\\|?*]+', "-", s)
@@ -188,7 +139,6 @@ def make_filename(artist: str, date, post_id: str, title: str = "", template_key
         tier        = tier_fmt,
     )
 
-    # Final safety net: strip any remaining control chars and collapse whitespace.
     result = _re.sub(r"[\x00-\x1f]+", " ", result)
     result = " ".join(result.split()).strip()
     return result
@@ -197,14 +147,6 @@ def make_filename(artist: str, date, post_id: str, title: str = "", template_key
 def fix_metadata(item: dict) -> dict:
     """
     Extract display metadata from one liveTabPosts entry.
-
-    Requires fieldSet=postsV1 — without it the API omits 'extension'
-    and all three fields fall back to their defaults.
-
-      Title      ->  item['extension']['mediaInfo']['title']
-      Date       ->  item['extension']['video']['onAirStartAt']  (Unix ms)
-      Membership ->  item['extension']['video']['membershipOnly']
-      Artist     ->  item['author']['artistOfficialProfile']['officialName']
     """
     ext_block = item.get("extension", {})
     video     = ext_block.get("video", {})
@@ -310,7 +252,6 @@ def mux_media_with_subtitles(video_path: Path, sub_list: list, ffmpeg_bin: str =
         lang = sub["lang"].split("_")[0]
         cmd.extend([f"-metadata:s:s:{i}", f"language={lang}"])
 
-    # Explicit codecs: copy video/audio, convert vtt to srt for MKV compatibility
     cmd.extend(["-c:v", "copy", "-c:a", "copy", "-c:s", "srt", str(output_abs)])
 
     try:
@@ -369,7 +310,6 @@ def mux_subtitles_into_video(
     for sub in subtitle_entries:
         cmd.extend(["-i", str(Path(sub["path"]).resolve())])
 
-    # Preserve AV streams, then attach each subtitle stream from each input.
     cmd.extend(["-map", "0:v", "-map", "0:a?"])
     for i, sub in enumerate(subtitle_entries):
         cmd.extend(["-map", f"{i+1}:0"])
