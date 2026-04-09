@@ -2,14 +2,9 @@
 
 All notable changes to this project are recorded here. The history below follows the repository from the first commit; related doc-only or merge commits are summarized together.
 
-## Unreleased
+---
 
-### Added
-
-- **Add an “Ongoing Lives Settings” submenu** (download-only, poll, subs, output format, mux subs, record-all)
-- **Ongoing lives controls**: `--ongoing-live-download-only {both,video,subs}` and `--ongoing-live-mux-subs` (plus matching interactive menu toggles for poll interval, subtitles, output format, and record-all).
-- **Main menu history toggle** — filters can disable reading/updating `downloaded.json` for the run (via `--no-history` behavior).
-- **Token refresh visibility** — startup and interactive main menu now show refresh-token status, and successful token refreshes print an `[Auth]` confirmation line.
+## 2026-04-06
 
 ### Fixed
 
@@ -17,19 +12,12 @@ All notable changes to this project are recorded here. The history below follows
 - **Token refresh persistence** — refreshed access/refresh tokens are written back into `config.yaml` to keep future runs working without manual copy/paste.
 - **Streamlink muxing warnings (Windows)** — ongoing-live recording now passes `--ffmpeg-ffmpeg` using the path from `binaries.ffmpeg` (resolved via PATH when possible) so Streamlink can mux A/V reliably.
 - **Streamlink auth after refresh** — Streamlink now prefers the refreshed `COMMON_HEADERS` bearer token over the stale `auth_token` value.
+- **Past live VOD 403** — cached CDN URLs can expire; the app now invalidates the cached VOD URL, refetches `playInfo`, and retries once.
+- **Mux progress output** — escape square brackets in labels and throttle FFmpeg progress updates to prevent duplicated progress lines in some terminals.
 
-- **Remove ongoing-live option rows from the main Actions list**
-- **Ongoing lives MKV remux** — map only v/a/sub streams when remuxing TS recordings into Matroska to avoid Matroska header/codec-parameter failures.
-- **`downloaded.json` correctness across downloads** — only record a post as downloaded after the requested downloads/muxing succeed (covers ongoing lives, feed archivers in `processors.py`, and official media in `official_media.py` / `official_media_menu.py`).
-- **Official-channel VOD quality selection** — `get_official_video_url()` now robustly selects the best MP4 representation (highest height, then bandwidth) and supports MPD XML as well as JSON responses.
-- **Saved post text (`.txt`)** — decode HTML/XML character references (`&gt;`, `&lt;`, `&amp;`, etc.) and strip WordprocessingML fragments (`<w:…>`, `</w:…>`) from post and comment bodies in `text_writer.py`.
-- **Moments video quality selection** — `cvideo` selection for moments now prefers `encodingOption.profile=HIGH` when available.
-- **Debug noise reduction** — `[Neonplayer]` and `[Video URL]` lines are only printed in `--debug` mode; raw N_m3u8DL-RE command lines are no longer printed in terminal output.
+### Added
 
-### Changed
-
-- **API layer no longer depends on yt-dlp extractor** — requests now call Weverse endpoints directly with required signed parameters (`wmd`/`wmsgpad`) and shared headers.
-- **Runtime structure cleanup** — execution flow is centralized via `app_runtime.py` (`AppRuntime`) and entrypoint/menu orchestration was tidied without changing behavior.
+- **Persist refreshed tokens** — on successful refresh, tokens are also cached in `weverse_token.json` and preferred on subsequent runs (handles refresh-token rotation).
 
 ---
 
