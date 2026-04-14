@@ -195,7 +195,13 @@ def download_drm_video(
                 console.print(f"  [DRM] Destination: {base_dir}")
                 console.print(f"  [DRM] Output file: {display_name}")
                 _log_n_m3u8dl_command(full_command, post_id)
-                subprocess.run(full_command, shell=True, check=True)
+                rc, err = utils.run_command_with_progress(
+                    full_command,
+                    description=f"N_m3u8DL-RE {display_name}",
+                    shell=True,
+                )
+                if rc != 0:
+                    raise RuntimeError((err or "N_m3u8DL-RE failed").strip()[:800])
 
                 # Locate the temp output and rename to the display name
                 temp_file = base_dir / f"{temp_dl_name}.mkv"
@@ -330,7 +336,13 @@ def download_drm_video(
         console.print(f"  [DRM] Destination: {base_dir}")
         console.print(f"  [DRM] Output file: {display_name}")
         _log_n_m3u8dl_command(full_command, post_id)
-        subprocess.run(full_command, shell=True, check=True)
+        rc, err = utils.run_command_with_progress(
+            full_command,
+            description=f"N_m3u8DL-RE {display_name}",
+            shell=True,
+        )
+        if rc != 0:
+            raise RuntimeError((err or "N_m3u8DL-RE failed").strip()[:800])
 
         temp_file = base_dir / f"{temp_dl_name}.mkv"
         if not temp_file.exists():
@@ -601,13 +613,18 @@ def record_ongoing_live_nm3u8dlre(
 
     console.print(f"  [Live Record] Running N_m3u8DL-RE: {save_name}")
     try:
-        result = subprocess.run(cmd)
+        rc, err = utils.run_command_with_progress(
+            cmd,
+            description=f"N_m3u8DL-RE live {save_name}",
+        )
     except Exception as e:
         console.print(f"  [Live Record Error] {e}")
         return None
 
-    if result.returncode != 0:
-        console.print(f"  [Live Record Error] N_m3u8DL-RE failed with code {result.returncode}")
+    if rc != 0:
+        console.print(f"  [Live Record Error] N_m3u8DL-RE failed with code {rc}")
+        if err:
+            console.print(f"  [Live Record Error] {err.strip()[:500]}")
         return None
 
     candidates = [
@@ -947,8 +964,13 @@ def download_ongoing_live_subtitles_nm3u8dlre(
 
     console.print("  [Live Subs] Downloading subtitles via N_m3u8DL-RE...")
     try:
-        res = subprocess.run(cmd)
-        return res.returncode == 0
+        rc, err = utils.run_command_with_progress(
+            cmd,
+            description=f"N_m3u8DL-RE subs {save_name}",
+        )
+        if rc != 0 and err:
+            console.print(f"  [Live Subs Error] {err.strip()[:500]}")
+        return rc == 0
     except Exception as e:
         console.print(f"  [Live Subs Error] {e}")
         return False

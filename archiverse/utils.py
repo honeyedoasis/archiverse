@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import threading
 import time
+from collections import deque
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -15,12 +16,13 @@ from rich.console import Console
 from rich.markup import escape
 from rich.progress import (
     Progress, BarColumn, DownloadColumn,
-    TransferSpeedColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn,
+    TransferSpeedColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn, SpinnerColumn,
 )
 
 console = Console()
 
 _OUT_TIME_US_RE = re.compile(r"^out_time_ms=(\d+)$")
+_PERCENT_RE = re.compile(r"(\d{1,3}(?:\.\d+)?)%")
 
 # Max characters for the mux progress label (narrow terminal + Rich live region).
 _MUX_LABEL_MAX_LEN = 52
@@ -180,6 +182,69 @@ def run_ffmpeg_with_progress(
             t_err.join(timeout=30)
 
     return (rc if rc is not None else -1), stderr_holder[0]
+
+
+def run_command_with_progress(
+    cmd,
+    *,
+    description: str = "Downloading",
+    shell: bool = False,
+) -> tuple[int, str]:
+    """
+    Run a long-lived external command with a simple indeterminate progress bar.
+
+    Intended for tools like N_m3u8DL-RE where we don't have stable machine-readable
+    progress values but still want a clean UI instead of raw log spam.
+    """
+    creationflags = 0x08000000 if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            shell=shell,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=creationflags,
+        )
+    except Exception as e:
+        return -1, str(e)
+
+    output_tail: deque[str] = deque(maxlen=200)
+    max_pct = 0.0
+    assert proc.stdout is not None
+
+    with Progress(
+        TextColumn("[bold cyan]{task.description}"),
+        BarColumn(bar_width=35),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        transient=True,
+        console=console,
+    ) as progress:
+        task = progress.add_task(description, total=100.0, completed=0.0)
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                break
+            output_tail.append(line.rstrip("\r\n"))
+            m = _PERCENT_RE.search(line)
+            if m:
+                try:
+                    pct = max(0.0, min(100.0, float(m.group(1))))
+                    if pct > max_pct:
+                        max_pct = pct
+                        progress.update(task, completed=max_pct)
+                except ValueError:
+                    pass
+        rc = proc.wait()
+        if rc == 0:
+            progress.update(task, completed=100.0)
+
+    err = "\n".join(output_tail).strip()
+    return (rc if rc is not None else -1), err
 
 
 def edit_creation_date(file_path, new_date: datetime.datetime):

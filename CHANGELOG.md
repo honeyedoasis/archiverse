@@ -16,6 +16,7 @@ All notable changes to this project are recorded here. The history below follows
 ### Changed
 
 - **Auth status propagation** — token usage/refresh messages are now persisted in shared runtime state so the interactive menu can render them consistently.
+- **N_m3u8DL-RE progress UI** — replace raw N_m3u8DL-RE output with a clean progress bar during downloads
 
 ---
 
