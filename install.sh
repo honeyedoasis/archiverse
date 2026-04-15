@@ -67,8 +67,31 @@ echo "Installation completed successfully!"
 echo "Try:"
 echo "  uv run archiverse --help"
 echo ""
-echo "If 'uv: command not found' appears in another terminal, add:"
-echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
-echo "to your shell profile (e.g. ~/.bashrc or ~/.zshrc), then restart the shell."
+
+# Persist uv path for future shells (idempotent).
+PATH_LINE='export PATH="$HOME/.local/bin:$PATH"'
+PROFILE_TARGET=""
+if [ -n "${ZSH_VERSION:-}" ]; then
+  PROFILE_TARGET="$HOME/.zshrc"
+elif [ -n "${BASH_VERSION:-}" ]; then
+  PROFILE_TARGET="$HOME/.bashrc"
+elif [ -f "$HOME/.zshrc" ]; then
+  PROFILE_TARGET="$HOME/.zshrc"
+else
+  PROFILE_TARGET="$HOME/.bashrc"
+fi
+
+if [ ! -f "$PROFILE_TARGET" ]; then
+  : > "$PROFILE_TARGET"
+fi
+
+if ! grep -Fq "$PATH_LINE" "$PROFILE_TARGET"; then
+  printf '\n%s\n' "$PATH_LINE" >> "$PROFILE_TARGET"
+  echo "[OK] Added uv PATH to $PROFILE_TARGET"
+else
+  echo "[OK] uv PATH already present in $PROFILE_TARGET"
+fi
+
+echo "Open a new terminal (or run: source \"$PROFILE_TARGET\") to reload PATH."
 echo ""
 
